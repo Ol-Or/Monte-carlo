@@ -1,0 +1,17 @@
+[0:50:20.802256684] [4128]  INFO Camera camera_manager.cpp:284 libcamera v0.2.0+120-eb00c13d
+[0:50:20.810751132] [4131]  INFO RPI pisp.cpp:695 libpisp version v1.0.5 999da5acb4f4 17-04-2024 (14:29:29)
+[0:50:20.831727727] [4131]  INFO RPI pisp.cpp:1154 Registered camera /base/axi/pcie@120000/rp1/i2c@88000/imx708@1a to CFE device /dev/media3 and ISP device /dev/media1 using PiSP variant BCM2712_C0
+Made X/EGL preview window
+[0:50:21.222350882] [4128]  WARN V4L2 v4l2_pixelformat.cpp:344 Unsupported V4L2 pixel format RPBP
+Mode selection for 2304:1296:12:P
+    SRGGB10_CSI2P,1536x864/0 - Score: 3400
+    SRGGB10_CSI2P,2304x1296/0 - Score: 1000
+    SRGGB10_CSI2P,4608x2592/0 - Score: 1900
+Stream configuration adjusted
+[0:50:21.222656511] [4128]  INFO Camera camera.cpp:1183 configuring streams: (0) 2304x1296-YUV420 (1) 2304x1296-BGGR_PISP_COMP1
+[0:50:21.222866567] [4131]  INFO RPI pisp.cpp:1450 Sensor: /base/axi/pcie@120000/rp1/i2c@88000/imx708@1a - Selected sensor format: 2304x1296-SBGGR10_1X10 - Selected CFE format: 2304x1296-PC1B
+[0:50:21.223385251] [4131] ERROR V4L2 v4l2_device.cpp:353 'dw9807 6-000c': Unable to set controls: Remote I/O error
+[0:50:21.293252077] [4131] ERROR V4L2 v4l2_videodevice.cpp:1906 /dev/video1[20:cap]: Failed to start streaming: Input/output error
+ERROR: *** failed to start camera ***
+[ WARN:0@11.333] global loadsave.cpp:248 findDecoder imread_('cam.jpg'): can't open/read file: check file path/integrity
+Failed to capture image.
