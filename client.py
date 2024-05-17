@@ -1,4 +1,6 @@
 #카메라 연결된 라즈베리파이
+
+#client.py
 import socket
 
 HOST = '192.168.0.10'
@@ -10,9 +12,18 @@ s.connect((HOST,PORT))
 
 #Lets loop awaiting for your input
 while True:
-    command = input('Enter your command: ')
-    s.send(command.encode('utf-8'))
+    for i in range(person_count):     # for person, coordinates in person_coordinates.items():
+        command = f"{person} : {coordinates}"
+        s.send(command.encode('utf-8'))
+    command="a" # 끝내려고 
     reply = s.recv(1024).decode('utf-8')
     if reply == 'Terminate':
-            break
-    print (reply)
+        break
+    print(reply)
+    else:
+        # for loop completed without breaking
+        continue
+    # for loop was broken
+break
+    
+time.sleep(60) # 몇 초마다 보내줄지
