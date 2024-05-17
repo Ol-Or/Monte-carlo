@@ -7,10 +7,8 @@ from picamera.array import PiRGBArray
 # YOLO 모델 로드
 net = cv2.dnn.readNet('yolov3.weights', 'yolov3.cfg')
 classes = []
-with open('coco.names', 'r') as f:
-    classes = [line.strip() for line in f.readlines()]
 layer_names = net.getLayerNames()
-output_layers = [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
+output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
 colors = np.random.uniform(0, 255, size=(len(classes), 3))
 font = cv2.FONT_HERSHEY_PLAIN
 
