@@ -1,4 +1,5 @@
-Traceback (most recent call last):
-  File "/home/monte-carlo1/detect_people_rasp_test.py", line 7, in <module>
-    net = cv2.dnn.readNet('yolov3.weights', 'yolov3.cfg')
-cv2.error: OpenCV(4.9.0) /io/opencv/modules/dnn/src/darknet/darknet_importer.cpp:210: error: (-212:Parsing error) Failed to open NetParameter file: yolov3.cfg in function 'readNetFromDarknet'
+File "/home/monte-carlo1/detect_people_rasp_test.py", line 12, in <module>
+    output_layers = [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
+  File "/home/monte-carlo1/detect_people_rasp_test.py", line 12, in <listcomp>
+    output_layers = [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
+IndexError: invalid index to scalar variable.
