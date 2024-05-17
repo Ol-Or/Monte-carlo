@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 import time
-import subprocess  # subprocess 모듈 임포트
+from picamera import PiCamera
+from picamera.array import PiRGBArray
 
 # YOLO 모델 로드
 net = cv2.dnn.readNet('yolov3.weights', 'yolov3.cfg')
@@ -10,16 +11,21 @@ with open('coco.names', 'r') as f:
     classes = [line.strip() for line in f.readlines()]
 layer_names = net.getLayerNames()
 output_layers = [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
+colors = np.random.uniform(0, 255, size=(len(classes), 3))
+font = cv2.FONT_HERSHEY_PLAIN
+
+camera = PiCamera()
+camera.resolution = (1024, 768)  # 또는 다른 해상도
+camera.framerate = 30
+rawCapture = PiRGBArray(camera, size=(1024, 768))
+
+time.sleep(2)
 
 try:
     while True:
-        # libcamera-jpeg 명령어 실행
-        subprocess.run(['libcamera-jpeg', '-o', 'cam.jpg'])
-        img = cv2.imread('cam.jpg')  # 이미지 파일 읽기
-
-        if img is None:
-            print("Failed to capture image.")
-            continue
+        # 이미지 캡처
+        camera.capture(rawCapture, format="bgr")
+        img = rawCapture.array
 
         # 객체 탐지
         height, width, channels = img.shape
@@ -27,7 +33,7 @@ try:
         net.setInput(blob)
         outs = net.forward(output_layers)
 
-        # 검출 결과 처리
+        # 정보를 화면에 표시
         class_ids = []
         confidences = []
         boxes = []
@@ -48,24 +54,29 @@ try:
                     class_ids.append(class_id)
         indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
 
-        # 사람 수 및 좌표
+        # 사람 수 및 좌표값 계산
         person_count = 0
         person_coordinates = {}
-        for i in indexes.flatten():
+        for i in indexes:
             if class_ids[i] == 0:
                 person_count += 1
                 x, y, w, h = boxes[i]
                 center_x = x + w // 2
                 center_y = y + h // 2
                 person_coordinates[f'person{person_count}'] = (center_x, center_y)
-
+                
         # 결과 출력
         print(f"Number of People: {person_count}")
         for person, coordinates in person_coordinates.items():
             print(f"{person} : {coordinates}")
 
-        # 일정 시간 대기
+        # 다음 캡처를 위해 rawCapture 초기화
+        rawCapture.truncate(0)
+        rawCapture.seek(0)
+
+        #waiting 5s
         time.sleep(5)
 
 except KeyboardInterrupt:
-    print("Program terminated.")
+    camera.close()
+    print("Camera closed and program terminated.")
