@@ -6,7 +6,7 @@ import os
 #client.py
 import socket
 
-HOST = '192.168.0.10'
+HOST = '192.168.0.15'
 # Enter IP or Hostname of your server
 PORT = 65535
 # Pick an open Port (1000+ recommended), must match the server port
@@ -83,15 +83,18 @@ try:
         print(f"Number of People: {person_count}")
         for person, coordinates in person_coordinates.items():
             print(f"{person} : {coordinates}")
-            while True:
-                command = f"{person} : {coordinates}"
-                s.send(command.encode('utf-8'))
-                reply = s.recv(1024).decode('utf-8')
-                if reply == 'Terminate':
-                    break
-                print(reply)
+
+            command = f"{person} : {coordinates}"
+            s.send(command.encode('utf-8'))
+            reply = s.recv(1024).decode('utf-8')
+            if reply == 'Terminate':
+                break
+            print(reply)
+        
         # 이미지를 해제하여 메모리 누수 방지
         del img
+        
+        
 
         # 5초 대기
         time.sleep(5)
@@ -100,3 +103,4 @@ except KeyboardInterrupt:
     print("Program terminated.")
 except Exception as e:
     print(f"An error occurred: {e}")
+
