@@ -16,7 +16,7 @@ person_coordinates = {'Person1': 'Location1', 'Person2': 'Location2'}
 
 #Lets loop awaiting for your input
 while True:
-    for i in range(person_count):     # for person, coordinates in person_coordinates.items():
+    for person, coordinates in person_coordinates.items():
         command = f"{person} : {coordinates}"
         s.send(command.encode('utf-8'))
     command="a" # 끝내려고 
@@ -24,5 +24,5 @@ while True:
     if reply == 'Terminate':
         break
     print(reply)
-    
+
     time.sleep(60) # 몇 초마다 보내줄지
