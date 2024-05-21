@@ -181,34 +181,37 @@ try:
             command = f"{person} : {coordinates}"
             s.send(command.encode('utf-8'))
             reply = s.recv(1024).decode('utf-8')
-            if __name__ == '__main__':
-            try:        
-                init(0x27, 1)
-            if person_count = 2:
+            
+            if reply == 'Terminate':
+                break
+            print(reply)
+        
+        
+        # 이미지를 해제하여 메모리 누수 방지
+        del img
+        
+          # 5초 대기
+        time.sleep(5)
+        
+        if __name__ == '__main__':
+                
+            if person_count == 2:
                 write(4, 0, 'Temperature is')
                 write(7, 1, '24.0')
             else:
                 write(4, 0, 'Temperature is')
                 write(7, 1, '26.0')
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            clear()
-            closelight()
-            print("LCD turned off and program terminated.")
-        except ValueError:
-            print("유효한 숫자를 입력하세요.")
-            if reply == 'Terminate':
-                break
-            print(reply)
-
-        # 이미지를 해제하여 메모리 누수 방지
-        del img
-        
-        # 5초 대기
-        time.sleep(5)
     
 except KeyboardInterrupt:
-    print("Program terminated.")
+    clear()
+    closelight()
+    print("LCD turned off and program terminated.")
+
+except ValueError:
+    print("유효한 숫자를 입력하세요.")
+
 except Exception as e:
     print(f"An error occurred: {e}")
+    
+finally:
+    BUS.close()
