@@ -11,7 +11,7 @@ layer_names = net.getLayerNames()
 output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
 colors = np.random.uniform(0, 255, size=(len(classes), 3))
 
-# libcamera-vid를 사용하 여비디오 스트림 생성 및 파이프
+# libcamera-vid를 사용하여 비디오 스트림 생성 및 파이프
 command = "libcamera-vid -t 0 --inline --codec yuv420 -o -"
 process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, bufsize=10**8)
 
@@ -53,23 +53,24 @@ try:
                     class_ids.append(class_id)
         indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
 
-        # 결과 출력
-        person_count = 0
-        person_coordinates = {}
-        for i in range(len(boxes)):
-            if i in indexes:
-                person_count += 1
-                x, y, w, h = boxes[i]
-                center_x = x + w // 2
-                center_y = y + h // 2
-                person_coordinates[f'person{person_count}'] = (center_x, center_y)
+        # 결과 그리기
+        for i in indexes:
+            i = i[0]
+            box = boxes[i]
+            x, y, w, h = box
+            cv2.rectangle(frame, (x, y), (x + w, y + h), colors[class_ids[i]], 2)
+            cv2.putText(frame, f"{classes[class_ids[i]]} {confidences[i]:.2f}", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[class_ids[i]], 2)
+
+        # 프레임 표시
+        cv2.imshow("Frame", frame)
 
         # 5초마다 결과 출력
         if time.time() - last_time_printed >= 5:
-            print(f"Number of People: {person_count}")
-            for person, coordinates in person_coordinates.items():
-                print(f"{person} : {coordinates}")
+            print(f"Number of People: {len(indexes)}")
             last_time_printed = time.time()
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
 except KeyboardInterrupt:
     print("Program terminated.")
@@ -77,4 +78,5 @@ except Exception as e:
     print(f"An error occurred: {e}")
 finally:
     cap.release()
+    cv2.destroyAllWindows()
     process.terminate()
