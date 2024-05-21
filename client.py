@@ -2,8 +2,9 @@
 
 #client.py
 import socket
+import time
 
-HOST = '192.168.0.10'
+HOST = '192.168.0.15'
 # Enter IP or Hostname of your server
 PORT = 65535
 # Pick an open Port (1000+ recommended), must match the server port
@@ -19,7 +20,7 @@ while True:
     for person, coordinates in person_coordinates.items():
         command = f"{person} : {coordinates}"
         s.send(command.encode('utf-8'))
-    command="a" # 끝내려고 
+        
     reply = s.recv(1024).decode('utf-8')
     if reply == 'Terminate':
         break
