@@ -17,3 +17,72 @@ python3 setup.py bdist_wheel
 
 pip3 install dist/*.whl
 
+
+import torch
+import cv2
+from PIL import Image
+import numpy as np
+import time
+from libcamera import CameraManager, Transform
+
+# YOLOv5 모델 로드
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt')  # custom 모델 경로 지정
+model.eval()
+
+# 클래스 레이블
+classes = model.names
+
+# libcamera를 사용하여 비디오 스트림 설정
+camera_manager = CameraManager()
+camera = camera_manager.create_camera('/base/soc/i2c0mux/i2c@1/imx219@10')
+camera.configure({"transform": Transform(flip_v=True)})
+
+camera.start()
+
+print("Starting video stream...")
+
+# 이전 감지 시간 초기화
+prev_time = time.time()
+
+try:
+    while True:
+        buffer = camera.capture_request().buffers[0]
+        frame = np.frombuffer(buffer, dtype=np.uint8).reshape((buffer.height, buffer.width, 3))
+
+        current_time = time.time()
+        height, width, _ = frame.shape
+
+        # 5초마다 객체 탐지
+        if current_time - prev_time >= 5:
+            # OpenCV 이미지를 PIL 이미지로 변환
+            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            
+            # 모델에 이미지 입력
+            results = model(img, size=640)
+            
+            # 결과 처리
+            person_count = 0
+            for *box, conf, cls in results.xyxy[0]:  # xyxy 형식의 바운딩 박스
+                if conf > 0.5 and classes[int(cls)] == "person":
+                    person_count += 1
+                    startX, startY, endX, endY = map(int, box)
+                    cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 2)
+                    label = f"{classes[int(cls)]}: {conf:.2f}"
+                    cv2.putText(frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            
+            print(f"Detected {person_count} people.")
+            prev_time = current_time
+
+        # Display the output frame
+        cv2.imshow("Frame", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+except KeyboardInterrupt:
+    print("Stream interrupted.")
+finally:
+    camera.stop()
+    cv2.destroyAllWindows()
+    print("Video stream stopped.")
+
+
