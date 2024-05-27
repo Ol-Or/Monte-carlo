@@ -6,7 +6,10 @@ from yolo5_onnx_cv import YOLOv5_ONNX_CV
 # 클래스를 상속받아 class_colors와 class_names 정의
 class CustomYOLOv5(YOLOv5_ONNX_CV):
     def __init__(self, model_path):
-        super().__init__(model_path)
+        # 부모 클래스 초기화
+        super(CustomYOLOv5, self).__init__(model_path)
+        
+        # class_names 및 class_colors 정의
         self.class_names = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck",
                             "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
                             "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
