@@ -1,2 +1,5 @@
 assert self.class_colors or self.class_names, 'You must inherit YOLOv5_ONNX_CV and define class_colors and class_names'
 AttributeError: 'CustomYOLOv5' object has no attribute 'class_colors'
+
+
+https://dev-sunyo.tistory.com/6
