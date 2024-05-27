@@ -1,5 +1,19 @@
 assert self.class_colors or self.class_names, 'You must inherit YOLOv5_ONNX_CV and define class_colors and class_names'
 AttributeError: 'CustomYOLOv5' object has no attribute 'class_colors'
 
-pip3 install https://github.com/nmilosev/pytorch-arm-builds/releases/download/v1.4.0/pytorch-1.4.0-cp37-cp37m-linux_armv7l.whl
+sudo apt-get update
+sudo apt-get install -y build-essential cmake git libatlas-base-dev libopenblas-dev libblas-dev liblapack-dev gfortran python3-dev
+
+git clone --recursive https://github.com/pytorch/pytorch
+cd pytorch
+
+pip3 install numpy pyyaml mkl mkl-include setuptools cmake cffi typing_extensions future six requests dataclasses
+
+export USE_MKLDNN=0
+export USE_NNPACK=0
+export USE_QNNPACK=0
+export USE_DISTRIBUTED=0
+python3 setup.py bdist_wheel
+
+pip3 install dist/*.whl
 
