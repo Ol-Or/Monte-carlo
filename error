@@ -18,51 +18,97 @@ python3 setup.py bdist_wheel
 pip3 install dist/*.whl
 
 
-/home/monte-carlo1/.local/lib/python3.11/site-packages/torch/hub.py:293: UserWarning: You are about to download and run code from an untrusted repository. In a future release, this won't be allowed. To add the repository to your trusted list, change the command to {calling_fn}(..., trust_repo=False) and a command prompt will appear asking for an explicit confirmation of trust, or load(..., trust_repo=True), which will assume that the prompt is to be answered with 'yes'. You can also use load(..., trust_repo='check') which will only prompt for confirmation if the repo is not already trusted. This will eventually be the default behaviour
-  warnings.warn(
-Downloading: "https://github.com/ultralytics/yolov5/zipball/master" to /home/monte-carlo1/.cache/torch/hub/master.zip
-YOLOv5 🚀 2024-5-27 Python-3.11.2 torch-2.3.0 CPU
+import cv2
+import numpy as np
+import time
+import subprocess
+import threading
 
-Traceback (most recent call last):
-  File "/home/monte-carlo1/.cache/torch/hub/ultralytics_yolov5_master/hubconf.py", line 50, in _create
-    model = DetectMultiBackend(path, device=device, fuse=autoshape)  # detection model
-  File "/home/monte-carlo1/.cache/torch/hub/ultralytics_yolov5_master/models/common.py", line 467, in __init__
-    model = attempt_load(weights if isinstance(weights, list) else w, device=device, inplace=True, fuse=fuse)
-  File "/home/monte-carlo1/.cache/torch/hub/ultralytics_yolov5_master/models/experimental.py", line 98, in attempt_load
-    ckpt = torch.load(attempt_download(w), map_location="cpu")  # load
-  File "/home/monte-carlo1/.local/lib/python3.11/site-packages/torch/serialization.py", line 997, in load
-    with _open_file_like(f, 'rb') as opened_file:
-  File "/home/monte-carlo1/.local/lib/python3.11/site-packages/torch/serialization.py", line 444, in _open_file_like
-    return _open_file(name_or_buffer, mode)
-  File "/home/monte-carlo1/.local/lib/python3.11/site-packages/torch/serialization.py", line 425, in __init__
-    super().__init__(open(name, mode))
-FileNotFoundError: [Errno 2] No such file or directory: 'best.pt'
+# YOLO 모델 로드
+net = cv2.dnn.readNet('yolov3.weights', 'yolov3.cfg')
+with open("coco.names", "r") as f:
+    classes = [line.strip() for line in f.readlines()]
+layer_names = net.getLayerNames()
+output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
+font = cv2.FONT_HERSHEY_PLAIN
 
-During handling of the above exception, another exception occurred:
+# 이미지 캡처 함수
+def capture_image(filename):
+    command = f"libcamera-still -o {filename}"
+    subprocess.run(command.split(), check=True)
 
-Traceback (most recent call last):
-  File "/home/monte-carlo1/.cache/torch/hub/ultralytics_yolov5_master/hubconf.py", line 65, in _create
-    model = attempt_load(path, device=device, fuse=False)  # arbitrary model
-  File "/home/monte-carlo1/.cache/torch/hub/ultralytics_yolov5_master/models/experimental.py", line 98, in attempt_load
-    ckpt = torch.load(attempt_download(w), map_location="cpu")  # load
-  File "/home/monte-carlo1/.local/lib/python3.11/site-packages/torch/serialization.py", line 997, in load
-    with _open_file_like(f, 'rb') as opened_file:
-  File "/home/monte-carlo1/.local/lib/python3.11/site-packages/torch/serialization.py", line 444, in _open_file_like
-    return _open_file(name_or_buffer, mode)
-  File "/home/monte-carlo1/.local/lib/python3.11/site-packages/torch/serialization.py", line 425, in __init__
-    super().__init__(open(name, mode))
-FileNotFoundError: [Errno 2] No such file or directory: 'best.pt'
+# 비디오 스트리밍 함수
+def video_stream():
+    cap = cv2.VideoCapture(0)  # 0은 기본 카메라
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        cv2.imshow("Video Stream", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    cap.release()
+    cv2.destroyAllWindows()
 
-The above exception was the direct cause of the following exception:
+# 객체 탐지 및 결과 출력 함수
+def detect_people(image_path):
+    img = cv2.imread(image_path)
+    if img is None:
+        print("Image not loaded properly. Skipping iteration.")
+        return
+    
+    height, width, channels = img.shape
+    blob = cv2.dnn.blobFromImage(img, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
+    net.setInput(blob)
+    outs = net.forward(output_layers)
 
-Traceback (most recent call last):
-  File "<string>", line 9, in <module>
-  File "/home/monte-carlo1/.local/lib/python3.11/site-packages/torch/hub.py", line 568, in load
-    model = _load_local(repo_or_dir, model, *args, **kwargs)
-  File "/home/monte-carlo1/.local/lib/python3.11/site-packages/torch/hub.py", line 597, in _load_local
-    model = entry(*args, **kwargs)
-  File "/home/monte-carlo1/.cache/torch/hub/ultralytics_yolov5_master/hubconf.py", line 88, in custom
-    return _create(path, autoshape=autoshape, verbose=_verbose, device=device)
-  File "/home/monte-carlo1/.cache/torch/hub/ultralytics_yolov5_master/hubconf.py", line 83, in _create
-    raise Exception(s) from e
-Exception: [Errno 2] No such file or directory: 'best.pt'. Cache may be out of date, try `force_reload=True` or see https://docs.ultralytics.com/yolov5/tutorials/pytorch_hub_model_loading for help.
+    class_ids = []
+    confidences = []
+    boxes = []
+    for out in outs:
+        for detection in out:
+            scores = detection[5:]
+            class_id = np.argmax(scores)
+            confidence = scores[class_id]
+            if confidence > 0.5 and class_id == 0:  # '0'은 사람 클래스
+                center_x = int(detection[0] * width)
+                center_y = int(detection[1] * height)
+                w = int(detection[2] * width)
+                h = int(detection[3] * height)
+                x = int(center_x - w / 2)
+                y = int(center_y - h / 2)
+                boxes.append([x, y, w, h])
+                confidences.append(float(confidence))
+                class_ids.append(class_id)
+    indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
+
+    person_count = 0
+    person_coordinates = {}
+    for i in range(len(boxes)):
+        if i in indexes:
+            person_count += 1
+            x, y, w, h = boxes[i]
+            center_x = x + w // 2
+            center_y = y + h // 2
+            person_coordinates[f'person{person_count}'] = (center_x, center_y)
+    
+    print(f"Number of People: {person_count}")
+    for person, coordinates in person_coordinates.items():
+        print(f"{person} : {coordinates}")
+
+# 비디오 스트리밍 쓰레드 시작
+threading.Thread(target=video_stream, daemon=True).start()
+
+# 이미지 캡처 및 객체 탐지 루프
+image_path = "/tmp/image.jpg"
+
+try:
+    while True:
+        capture_image(image_path)
+        detect_people(image_path)
+        time.sleep(5)
+
+except KeyboardInterrupt:
+    print("Program terminated.")
+except Exception as e:
+    print(f"An error occurred: {e}")
