@@ -5,7 +5,7 @@ import numpy as np
 import time
 
 # YOLOv5 모델 로드
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)  # yolov5s는 사전 학습된 모델
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)  # 사전 학습된 YOLOv5s 모델
 model.eval()
 
 # 클래스 레이블
@@ -31,90 +31,9 @@ try:
             break
 
         current_time = time.time()
-        height, width, _ = frame.shape
 
         # 5초마다 객체 탐지
         if current_time - prev_time >= detection_interval:
-            # OpenCV 이미지를 PIL 이미지로 변환
-            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            
-            # 모델에 이미지 입력
-            results = model(img)
-            
-            # 결과 처리
-            person_count = 0
-            for detection in results.xyxy[0]:  # xyxy 형식의 바운딩 박스
-                xmin, ymin, xmax, ymax, conf, cls = detection
-                if conf > 0.5 and int(cls) == 0:  # '0'은 사람 클래스
-                    person_count += 1
-                    startX, startY, endX, endY = int(xmin), int(ymin), int(xmax), int(ymax)
-                    cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 2)
-                    label = f"{classes[int(cls)]}: {conf:.2f}"
-                    cv2.putText(frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            
-            print(f"Number of People: {person_count}")
-            prev_time = current_time
-
-        # 비디오 스트림을 화면에 표시
-        cv2.imshow("Video Stream", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-except KeyboardInterrupt:
-    print("Program terminated.")
-finally:
-    cap.release()
-    cv2.destroyAllWindows()
-    print("Video stream stopped.")
-
-
-
-
-import torch
-import cv2
-from PIL import Image
-import numpy as np
-import time
-import subprocess
-
-# YOLOv5 모델 로드
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)  # 사전 학습된 YOLOv5s 모델
-model.eval()
-
-# 클래스 레이블
-classes = model.names
-
-# libcamera로 이미지 캡처 함수
-def capture_image(filename):
-    command = f"libcamera-still -o {filename} --nopreview"
-    subprocess.run(command.split(), check=True)
-
-# 비디오 스트리밍 설정
-image_path = "/tmp/image.jpg"
-
-print("Starting video stream...")
-
-# 이전 감지 시간 초기화
-prev_time = time.time()
-detection_interval = 5  # 감지 간격 (초)
-
-try:
-    while True:
-        current_time = time.time()
-
-        # 5초마다 객체 탐지
-        if current_time - prev_time >= detection_interval:
-            # 이미지 캡처
-            capture_image(image_path)
-            
-            # 저장된 이미지 로드
-            frame = cv2.imread(image_path)
-            if frame is None:
-                print("Failed to load image.")
-                continue
-            
-            height, width, _ = frame.shape
-            
             # OpenCV 이미지를 PIL 이미지로 변환
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             
@@ -144,5 +63,6 @@ try:
 except KeyboardInterrupt:
     print("Program terminated.")
 finally:
+    cap.release()
     cv2.destroyAllWindows()
     print("Video stream stopped.")
