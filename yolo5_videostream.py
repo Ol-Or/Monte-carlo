@@ -1,26 +1,13 @@
-'''
-import torch
-import torch.onnx
-
-# 모델 로드
-model = torch.load('yolov7.pt', map_location=torch.device('cpu'))
-model.eval()
-
-# 더미 입력 생성
-dummy_input = torch.randn(1, 3, 640, 640)
-
-# ONNX로 내보내기
-torch.onnx.export(model, dummy_input, "yolov7.onnx", verbose=True, input_names=['input'], output_names=['output'], opset_version=11)
-
-'''
-
+import time
 import cv2
 import numpy as np
-import time
+from yolo5_onnx_cv import YOLOv5_ONNX_CV
 
 # ONNX 모델 로드
 model_path = 'yolov5.onnx'
-net = cv2.dnn.readNetFromONNX(model_path)
+yolo_model = YOLOv5_ONNX_CV(model_path)
+
+# 클래스 레이블
 classes = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck",
            "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
            "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
@@ -52,22 +39,19 @@ try:
 
         # 5초마다 객체 탐지
         if current_time - prev_time >= 5:
-            blob = cv2.dnn.blobFromImage(frame, 1/255.0, (640, 640), swapRB=True, crop=False)
-            net.setInput(blob)
-            detections = net.forward()
+            detections = yolo_model.detect(frame)
 
             person_count = 0
-            for i in range(detections.shape[2]):
-                confidence = detections[0, 0, i, 2]
-                if confidence > 0.5:
-                    class_id = int(detections[0, 0, i, 1])
-                    if classes[class_id] == "person":
-                        person_count += 1
-                        box = detections[0, 0, i, 3:7] * np.array([width, height, width, height])
-                        (startX, startY, endX, endY) = box.astype("int")
-                        cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 2)
-                        label = f"{classes[class_id]}: {confidence:.2f}"
-                        cv2.putText(frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            for detection in detections:
+                class_id = int(detection[5])
+                confidence = detection[4]
+                if confidence > 0.5 and classes[class_id] == "person":
+                    person_count += 1
+                    box = detection[:4].astype("int")
+                    (startX, startY, endX, endY) = box
+                    cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 2)
+                    label = f"{classes[class_id]}: {confidence:.2f}"
+                    cv2.putText(frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             
             print(f"Detected {person_count} people.")
             prev_time = current_time
