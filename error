@@ -3,100 +3,76 @@ import numpy as np
 import time
 import subprocess
 import threading
+from PIL import Image
+import torch
 
-# YOLO 모델 로드
-net = cv2.dnn.readNet('yolov3.weights', 'yolov3.cfg')
-with open("coco.names", "r") as f:
-    classes = [line.strip() for line in f.readlines()]
-layer_names = net.getLayerNames()
-output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
-colors = np.random.uniform(0, 255, size=(len(classes), 3))
-font = cv2.FONT_HERSHEY_PLAIN
+# YOLOv5 모델 로드
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+model.eval()
 
-# 비디오 스트리밍 설정
-image_path = "/tmp/image.jpg"
+# 클래스 레이블
+classes = model.names
 
-# libcamera-vid를 이용해 비디오 스트림을 유지하면서 5초마다 이미지를 캡처하는 함수
-def capture_video_and_detect():
-    command = f"libcamera-vid -t 0 --inline --output -o {image_path}"
-    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
+# 이미지 캡처 함수
+def capture_images():
+    command = "libcamera-vid -t 0 --inline --width 640 --height 480 -o -"
+    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, bufsize=10**8)
+    return process
+
+# 객체 탐지 함수
+def detect_people(image):
+    img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    results = model(img)
+
+    person_count = 0
+    person_coordinates = {}
+    for detection in results.xyxy[0]:  # xyxy 형식의 바운딩 박스
+        xmin, ymin, xmax, ymax, conf, cls = detection
+        if conf > 0.5 and int(cls) == 0:  # '0'은 사람 클래스
+            person_count += 1
+            startX, startY, endX, endY = int(xmin), int(ymin), int(xmax), int(ymax)
+            centerX = (startX + endX) // 2
+            centerY = (startY + endY) // 2
+            person_coordinates[f'person{person_count}'] = (centerX, centerY)
+            cv2.rectangle(image, (startX, startY), (endX, endY), (0, 255, 0), 2)
+            label = f"{classes[int(cls)]}: {conf:.2f}"
+            cv2.putText(image, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    print(f"Number of People: {person_count}")
+    for person, coordinates in person_coordinates.items():
+        print(f"{person} : {coordinates}")
+    return image
+
+# 비디오 스트리밍 함수
+def stream_video():
+    process = capture_images()
     prev_time = time.time()
     detection_interval = 5  # 감지 간격 (초)
 
     try:
         while True:
+            # 비디오 스트림 읽기
+            raw_data = process.stdout.read(640 * 480 * 3)
+            if not raw_data:
+                break
+            frame = np.frombuffer(raw_data, dtype=np.uint8).reshape((480, 640, 3))
+
             current_time = time.time()
-            
-            # 5초마다 객체 탐지
             if current_time - prev_time >= detection_interval:
-                # 저장된 이미지 로드
-                img = cv2.imread(image_path)
-                if img is None:
-                    print("Image not loaded properly. Skipping iteration.")
-                    continue
-
-                height, width, channels = img.shape
-                blob = cv2.dnn.blobFromImage(img, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
-                net.setInput(blob)
-                outs = net.forward(output_layers)
-
-                # 정보를 화면에 표시
-                class_ids = []
-                confidences = []
-                boxes = []
-                for out in outs:
-                    for detection in out:
-                        scores = detection[5:]
-                        class_id = np.argmax(scores)
-                        confidence = scores[class_id]
-                        if confidence > 0.5 and class_id == 0:  # '0'은 사람 클래스
-                            center_x = int(detection[0] * width)
-                            center_y = int(detection[1] * height)
-                            w = int(detection[2] * width)
-                            h = int(detection[3] * height)
-                            x = int(center_x - w / 2)
-                            y = int(center_y - h / 2)
-                            boxes.append([x, y, w, h])
-                            confidences.append(float(confidence))
-                            class_ids.append(class_id)
-                indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
-
-                # 사람 수 및 좌표값 계산
-                person_count = 0
-                person_coordinates = {}
-                for i in range(len(boxes)):
-                    if i in indexes:
-                        person_count += 1
-                        x, y, w, h = boxes[i]
-                        center_x = x + w // 2
-                        center_y = y + h // 2
-                        person_coordinates[f'person{person_count}'] = (center_x, center_y)
-
-                # 결과 출력
-                print(f"Number of People: {person_count}")
-                for person, coordinates in person_coordinates.items():
-                    print(f"{person} : {coordinates}")
-
+                frame = detect_people(frame)
                 prev_time = current_time
 
-            # 1초 대기 (너무 빈번하게 반복되지 않도록 설정)
-            time.sleep(1)
+            # 비디오 스트림을 화면에 표시
+            cv2.imshow("Video Stream", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
     except KeyboardInterrupt:
         print("Program terminated.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
     finally:
         process.terminate()
         cv2.destroyAllWindows()
+        print("Video stream stopped.")
 
-# 비디오 스트리밍 및 객체 탐지 쓰레드 시작
-threading.Thread(target=capture_video_and_detect, daemon=True).start()
-
-# 메인 프로그램 실행 유지
-try:
-    while True:
-        time.sleep(1)
-except KeyboardInterrupt:
-    print("Main program terminated.")
+# 비디오 스트리밍 시작
+stream_video()
