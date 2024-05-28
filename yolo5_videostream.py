@@ -1,18 +1,4 @@
-'''
-import torch
-import torch.onnx
 
-# 모델 로드
-model = torch.load('yolov7.pt', map_location=torch.device('cpu'))
-model.eval()
-
-# 더미 입력 생성
-dummy_input = torch.randn(1, 3, 640, 640)
-
-# ONNX로 내보내기
-torch.onnx.export(model, dummy_input, "yolov7.onnx", verbose=True, input_names=['input'], output_names=['output'], opset_version=11)
-
-'''
 
 import cv2
 import numpy as np

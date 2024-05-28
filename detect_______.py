@@ -1,83 +1,96 @@
 import cv2
 import numpy as np
+import threading
 import time
+from picamera2 import Picamera2
 
-# ONNX 모델 로드
-model_path = 'yolov5.onnx'
-net = cv2.dnn.readNetFromONNX(model_path)
-classes = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck",
-           "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
-           "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
-           "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-           "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
-           "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup",
-           "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
-           "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa",
-           "pottedplant", "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse",
-           "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
-           "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier",
-           "toothbrush"]
+# YOLO 모델 로드
+net = cv2.dnn.readNet('yolov3.weights', 'yolov3.cfg')
+with open("coco.names", "r") as f:
+    classes = [line.strip() for line in f.readlines()]
+layer_names = net.getLayerNames()
+output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
+colors = np.random.uniform(0, 255, size=(len(classes), 3))
+font = cv2.FONT_HERSHEY_PLAIN
 
-# 비디오 스트림 설정
-cap = cv2.VideoCapture(0)  # 0은 기본 카메라
-print("Starting video stream...")
+# PiCamera2 초기화 및 설정
+picam2 = Picamera2()
+config = picam2.create_video_configuration(main={"size": (640, 480)})
+picam2.configure(config)
 
-# 이전 감지 시간 초기화
-prev_time = time.time()
+# 전역 변수
+frame = None
+detections = []
+lock = threading.Lock()
 
-# 관심 영역(ROI) 설정: 원본 이미지의 4개의 점을 지정합니다.
-src_points = np.float32([[100, 200], [500, 200], [100, 500], [500, 500]])
-# 변환 후의 목적지 영역(예: 800x800 크기의 정사각형)
-dst_points = np.float32([[0, 0], [800, 0], [0, 800], [800, 800]])
-# 투시 변환 행렬 계산
-M = cv2.getPerspectiveTransform(src_points, dst_points)
+def capture_frames():
+    global frame
+    picam2.start()
+    while True:
+        with lock:
+            frame = picam2.capture_array()
+
+def detect_objects():
+    global frame, detections
+    while True:
+        with lock:
+            if frame is not None:
+                blob = cv2.dnn.blobFromImage(frame, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
+                net.setInput(blob)
+                outs = net.forward(output_layers)
+                
+                height, width, channels = frame.shape
+                class_ids = []
+                confidences = []
+                boxes = []
+                for out in outs:
+                    for detection in out:
+                        scores = detection[5:]
+                        class_id = np.argmax(scores)
+                        confidence = scores[class_id]
+                        if confidence > 0.5 and class_id == 0:  # '0'은 사람 클래스
+                            center_x = int(detection[0] * width)
+                            center_y = int(detection[1] * height)
+                            w = int(detection[2] * width)
+                            h = int(detection[3] * height)
+                            x = int(center_x - w / 2)
+                            y = int(center_y - h / 2)
+                            boxes.append([x, y, w, h])
+                            confidences.append(float(confidence))
+                            class_ids.append(class_id)
+                indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
+                detections = [(boxes[i], class_ids[i]) for i in indexes]
+
+        time.sleep(0.1)  # 객체 탐지 간격 (10 FPS)
+
+# 스레드 생성
+thread_capture = threading.Thread(target=capture_frames)
+thread_detect = threading.Thread(target=detect_objects)
+
+# 스레드 시작
+thread_capture.start()
+thread_detect.start()
 
 try:
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        current_time = time.time()
-        height, width, _ = frame.shape
+        with lock:
+            if frame is not None:
+                display_frame = frame.copy()
+                for box, class_id in detections:
+                    x, y, w, h = box
+                    label = str(classes[class_id])
+                    color = colors[class_id]
+                    cv2.rectangle(display_frame, (x, y), (x + w, y + h), color, 2)
+                    cv2.putText(display_frame, label, (x, y - 10), font, 1, color, 2)
+                cv2.imshow("Image", display_frame)
 
-        # 5초마다 객체 탐지
-        if current_time - prev_time >= 5:
-            blob = cv2.dnn.blobFromImage(frame, 1/255.0, (640, 640), swapRB=True, crop=False)
-            net.setInput(blob)
-            detections = net.forward()
-
-            person_count = 0
-            for i in range(detections.shape[2]):
-                confidence = detections[0, 0, i, 2]
-                if confidence > 0.5:
-                    class_id = int(detections[0, 0, i, 1])
-                    if classes[class_id] == "person":
-                        person_count += 1
-                        box = detections[0, 0, i, 3:7] * np.array([width, height, width, height])
-                        (startX, startY, endX, endY) = box.astype("int")
-                        cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 2)
-                        label = f"{classes[class_id]}: {confidence:.2f}"
-                        cv2.putText(frame, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                        
-                        # 사람의 중심 좌표 계산
-                        centerX, centerY = (startX + endX) // 2, (startY + endY) // 2
-                        # 사람의 좌표를 투시 변환
-                        transformed_point = cv2.perspectiveTransform(np.array([[[centerX, centerY]]], dtype='float32'), M)
-                        transformed_point = transformed_point[0][0]
-                        print(f"Person at original ({centerX}, {centerY}), transformed to ({transformed_point[0]}, {transformed_point[1]})")
-            
-            print(f"Detected {person_count} people.")
-            prev_time = current_time
-
-        # Display the output frame
-        cv2.imshow("Frame", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
 except KeyboardInterrupt:
-    print("Stream interrupted.")
+    print("Program terminated.")
+except Exception as e:
+    print(f"An error occurred: {e}")
 finally:
-    cap.release()
+    picam2.stop()
     cv2.destroyAllWindows()
-    print("Video stream stopped.")
